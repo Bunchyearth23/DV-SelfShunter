@@ -219,6 +219,7 @@ public class JobMechanics
     {
         if (job == null || !terminalJobs.Add(job.ID)) return;
         SelfShuntApi.Runtime.PublishLifecycle(SelfShuntIntegrationEventType.Completed, ContextFor(job), 0, "completed");
+        SelfShuntApi.Runtime.ForgetExternalJob(job.ID);
         RemoveAllCargo(job);
     }
 
@@ -226,6 +227,7 @@ public class JobMechanics
     {
         if (job == null || !terminalJobs.Add(job.ID)) return;
         SelfShuntApi.Runtime.PublishLifecycle(SelfShuntIntegrationEventType.Cancelled, ContextFor(job), 0, "abandoned");
+        SelfShuntApi.Runtime.ForgetExternalJob(job.ID);
         RemoveAllCargo(job);
     }
 
@@ -233,6 +235,7 @@ public class JobMechanics
     {
         if (job == null || !terminalJobs.Add(job.ID)) return;
         SelfShuntApi.Runtime.PublishLifecycle(SelfShuntIntegrationEventType.Expired, ContextFor(job), 0, "expired");
+        SelfShuntApi.Runtime.ForgetExternalJob(job.ID);
         RemoveAllCargo(job);
     }
 
@@ -240,12 +243,12 @@ public class JobMechanics
     {
         StaticDirectJobDefinition definition;
         StaticDirectJobDefinition.jobDefinitions.TryGetValue(job?.ID ?? "", out definition);
-        return new JobContext
+        return SelfShuntApi.Runtime.Correlate(new JobContext
         {
             JobId = job?.ID ?? "",
             StationId = definition?.chainData?.chainOriginYardId ?? "",
             CargoId = definition == null ? "" : definition.transportedCargo.ToString()
-        };
+        });
     }
 
     private static decimal GetCumulativeQuantity(WarehouseTask task)

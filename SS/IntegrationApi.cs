@@ -9,6 +9,7 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
     private readonly object gate = new object();
     private readonly HashSet<string> suspendedStations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> operations = new Dictionary<string, string>(StringComparer.Ordinal);
+    private readonly Dictionary<string, JobContext> externalJobs = new Dictionary<string, JobContext>(StringComparer.Ordinal);
     private bool naturalCarPopulationSuspended;
 
     public int ApiVersion => 1;
@@ -71,6 +72,32 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
         get { lock (gate) return naturalCarPopulationSuspended; }
     }
 
+    public bool IsExternalEconomicAuthority => IsStrictEconomyActive;
+
+    public bool TryRegisterExternalJob(SelfShuntExternalJobRegistration registration)
+    {
+        if (!IsHost || !IsStrictEconomyActive || registration == null ||
+            string.IsNullOrWhiteSpace(registration.OperationId) || string.IsNullOrWhiteSpace(registration.JobId) ||
+            string.IsNullOrWhiteSpace(registration.StationId) || string.IsNullOrWhiteSpace(registration.CargoId)) return false;
+        var fingerprint = "external-job|" + registration.JobId + "|" + registration.StationId + "|" + registration.CargoId;
+        lock (gate)
+        {
+            if (operations.TryGetValue(registration.OperationId, out var known)) return string.Equals(known, fingerprint, StringComparison.Ordinal);
+            if (externalJobs.ContainsKey(registration.JobId)) return false;
+            operations.Add(registration.OperationId, fingerprint);
+            externalJobs.Add(registration.JobId, new JobContext
+            {
+                OperationId = registration.OperationId,
+                JobId = registration.JobId,
+                StationId = registration.StationId,
+                CargoId = registration.CargoId
+            });
+        }
+        PublishLifecycle(SelfShuntIntegrationEventType.ExternalJobCreated, ContextForExternal(registration.JobId), 0, "external-job-registered");
+        Main.SelfShuntModEntry?.Logger.Log("Integration API: registered externally-authoritative job " + registration.JobId + ".");
+        return true;
+    }
+
     internal bool ShouldGenerateAt(string stationId) => !IsNewGenerationSuspended(stationId);
     internal bool ShouldPopulateNaturalCars => !IsNaturalCarPopulationSuspended;
     internal bool IsStrictEconomyActive
@@ -84,12 +111,31 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
         Publish(new SelfShuntIntegrationEvent
         {
             Type = type,
+            OperationId = context.OperationId,
             JobId = context.JobId,
             StationId = context.StationId,
             CargoId = context.CargoId,
             CumulativeQuantity = quantity,
+            ObservedPayout = 0,
             ResultCode = resultCode
         });
+    }
+
+    internal JobContext Correlate(JobContext context)
+    {
+        if (string.IsNullOrWhiteSpace(context.JobId)) return context;
+        lock (gate) return externalJobs.TryGetValue(context.JobId, out var external) ? external : context;
+    }
+
+    internal void ForgetExternalJob(string jobId)
+    {
+        if (string.IsNullOrWhiteSpace(jobId)) return;
+        lock (gate) externalJobs.Remove(jobId);
+    }
+
+    private JobContext ContextForExternal(string jobId)
+    {
+        lock (gate) return externalJobs[jobId];
     }
 
     private void Publish(SelfShuntIntegrationEvent value)
@@ -101,6 +147,7 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
 
 internal sealed class JobContext
 {
+    public string OperationId { get; set; } = "";
     public string JobId { get; set; } = "";
     public string StationId { get; set; } = "";
     public string CargoId { get; set; } = "";

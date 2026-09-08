@@ -14,6 +14,8 @@ var api = typeof(ISelfShuntIntegrationApi);
 Check(api.GetProperty(nameof(ISelfShuntIntegrationApi.ApiVersion)) != null, "API version property is required");
 Check(api.GetMethod(nameof(ISelfShuntIntegrationApi.SetNewGenerationSuspended)) != null, "generation control is required");
 Check(api.GetMethod(nameof(ISelfShuntIntegrationApi.SetNaturalCarPopulationSuspended)) != null, "population control is required");
+Check(api.GetProperty(nameof(ISelfShuntIntegrationApi.IsExternalEconomicAuthority)) != null, "external economic authority evidence is required");
+Check(api.GetMethod(nameof(ISelfShuntIntegrationApi.TryRegisterExternalJob)) != null, "external job correlation is required");
 Check(api.GetEvent(nameof(ISelfShuntIntegrationApi.EventPublished)) != null, "lifecycle event surface is required");
 
 if (failures.Count != 0)
@@ -22,7 +24,7 @@ if (failures.Count != 0)
     return 1;
 }
 
-Console.WriteLine("SelfShunt.API contract tests: 9/9 passed");
+Console.WriteLine("SelfShunt.API contract tests: 11/11 passed");
 return 0;
 
 void Check(bool condition, string message)
