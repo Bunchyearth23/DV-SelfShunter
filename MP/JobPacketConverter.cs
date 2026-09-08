@@ -16,7 +16,8 @@ public static class JobPacketConverter
     {
         foreach (Job job in AccessTools.Field(typeof(JobsManager), "allJobs").GetValue(JobsManager.Instance) as List<Job>)
         {
-            if(job.ID == packet.ID) Debug.Log($"Job {job.ID} exists; skipping!");
+            if (job.ID != packet.ID) continue;
+            Debug.Log($"Job {job.ID} exists; skipping!");
             return;
         }
         Debug.Log($"Received {packet.ID} with {packet.CargoCount} as new job");
