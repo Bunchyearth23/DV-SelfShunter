@@ -6,6 +6,7 @@
 
 # Allow C# and JSON files
 !*.cs
+!*.csproj
 !*.json
 !*.txt
 

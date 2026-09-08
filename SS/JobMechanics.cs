@@ -219,8 +219,14 @@ public class JobMechanics
     [HarmonyPrefix]
     public static bool AreDeleteConditionsFulfilled_Prefix(TrainCar trainCar, ref bool __result)
     {
-        __result = false;
+        if (trainCar?.logicCar == null) return true;
+        Job job = SingletonBehaviour<JobsManager>.Instance.GetJobOfCar(trainCar.logicCar);
+        if (job == null || string.IsNullOrWhiteSpace(job.ID) || !StaticDirectJobDefinition.jobDefinitions.ContainsKey(job.ID))
+            return true;
 
+        // Only SelfShunt cars attached to an active generated job are protected.
+        // Unrelated, abandoned and system rolling stock keeps the vanilla cleanup lifecycle.
+        __result = false;
         return false;
     }
 

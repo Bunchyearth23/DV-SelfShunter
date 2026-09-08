@@ -22,7 +22,8 @@ public static class SelfShunt
     [HarmonyPrefix]
     public static bool TryToGenerateJobs_Prefix(StationProceduralJobsController __instance)
     {
-        if(CarSpawner.Instance.AllCars.Count<SSCarSpawner.CAR_SPAWN_GOAL)SSCarSpawner.PopulateMapWithCars();
+        if(SelfShuntApi.Runtime.ShouldPopulateNaturalCars && CarSpawner.Instance.AllCars.Count<SSCarSpawner.CAR_SPAWN_GOAL)
+            SSCarSpawner.PopulateMapWithCars();
         return false;
     }
 
@@ -46,6 +47,7 @@ public static class SelfShunt
     {
         Station station = stationController.logicStation;
         if(DisabledStations.Contains(station.ID))return;
+        if(!SelfShuntApi.Runtime.ShouldGenerateAt(station.ID))return;
         int trackCount = station.yard.GetAllYardTracks().Count();
         int jobLimit = trackCount + (int)(Math.Sqrt(10 * trackCount)+1);
         if (station.availableJobs.Count < jobLimit)
