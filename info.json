@@ -1,11 +1,11 @@
 {
-  "Id": "DoubleTrack",
-  "DisplayName": "Double Track",
-  "Author": "Chump_the_Lump",
-  "Repository":"https://raw.githubusercontent.com/Chump-the-Lump/DV-DoubleTrack/refs/heads/main/repository.json",
-  "Version": "1.4.3",
-  "AssemblyName": "DoubleTrack.dll",
-  "EntryMethod": "DoubleTrack.TrackPlacerEntry.Load",
-  "LoadAfter": ["Multiplayer"],
+  "Id": "SelfShunt",
+  "DisplayName": "SelfShunt - BDVM integration fork",
+  "Author": "Chump_the_Lump; BDVM integration by Bunchy (Bunchyearth23)",
+  "Repository": "https://raw.githubusercontent.com/Bunchyearth23/DV-SelfShunter/dvcompany-integration/repository.json",
+  "Version": "1.1.0",
+  "AssemblyName": "SelfShunt.dll",
+  "EntryMethod": "SelfShunt.Main.Load",
+  "LoadAfter": [ "Multiplayer" ],
   "MultiplayerCompatibility": "All"
-  }
+}

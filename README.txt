@@ -1,42 +1,53 @@
-:: IMPORTANT ::
-The code you are about to witness is an absolute cluster fuck. I would not wish it on anyone to go though the steaming heap of shit that is this repository. PEAPLE HAVE PERISHED HERE BEFOR! Let it be know that following B100, all code here shall be deemed irrelevant and quickly forgotten! YOU HAVE BEEN WARNED!
+SelfShunt - BDVM integration fork
+=================================
 
-:: REQUIREMENTS ::
-• Derail Valley
+SelfShunt creates local shunting work from compatible consists already present
+in Derail Valley. It does not add an AI driver and never moves a train for the
+player.
 
-:: FEATURES ::
-• Double Track added to the valley
+Requirements
+============
 
-:: GENERAL OTHER STUFF ::
-• Works with Multi-player Mod and Remote Dispatch
+- Derail Valley
+- Unity Mod Manager
+- Multiplayer is optional; when present, only the host owns generation and
+  lifecycle authority.
 
-::  KNOWN ISSUES ::
-• The code is a cluster fuck
-• Editing the targets file is not supported, here be dragons!
+BDVM integration
+================
 
-::  CREDITS Template ::
-♦ Chump_the_Lump
+This branch adds SelfShunt.API for BDVM.SelfShuntBridge. The API exposes
+host-only, idempotent controls for job generation and natural rolling-stock
+population, plus observational lifecycle events. When strict BDVM economy is
+enabled, SelfShunt wages are suppressed and BDVM remains the sole economic
+authority. Clients only receive replicated state.
 
-BDVM integration fork
-=====================
+The integration fails closed when authority or a required capability cannot be
+proved. Cleanup protection is limited to rolling stock assigned to an active
+SelfShunt job; unrelated wagons and cabooses keep their normal game lifecycle.
 
+Status
+======
+
+Version 1.1.0 is a beta candidate. Automated builds and policy tests pass, but
+the Unity, save/reload and host/client campaign in UNITY_TESTS.md is required
+before a stable release.
+
+Credits and permission
+======================
+
+Original author and mandatory credit: Chump_the_Lump
 Original repository: https://github.com/Chump-the-Lump/DV-SelfShunter
-Base revision: 329c85cf51715404af3b4d455239d9fc54f5ac5b
+Fork repository: https://github.com/Bunchyearth23/DV-SelfShunter
+Recorded base revision: 329c85cf51715404af3b4d455239d9fc54f5ac5b
 
-Credit: Chump_the_Lump
+The original author permits forks provided this credit, the original repository
+link and the source revision remain visible. This permission is not represented
+as a conventional open-source licence.
 
-Reliability and BDVM integration
-================================
+Build and validation
+====================
 
-The host is the sole authority for job generation, natural rolling-stock
-population, consist assignment, lifecycle publication and cleanup. Clients only
-receive replicated state. SelfShunt does not create an AI driver or move trains;
-the player remains responsible for switching and hauling.
-
-SelfShunt.API remains API version 1 for BDVM.SelfShuntBridge compatibility. Its
-generation and population commands are host-only and idempotent. Lifecycle
-events are observational: they never credit an account. BDVM remains the only
-economic authority whenever its strict economy policy is active.
-
-See UNITY_TESTS.md for the required in-game validation. The game is never
-launched by the build or test process.
+Build SelfShunt.csproj and the API for net48 against a local Derail Valley
+installation. No build or test command launches the game. Follow UNITY_TESTS.md
+for the remaining runtime evidence.
