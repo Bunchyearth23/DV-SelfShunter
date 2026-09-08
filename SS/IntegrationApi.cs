@@ -28,6 +28,7 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
             operations.Add(operationId, fingerprint);
             if (suspended) suspendedStations.Add(scope); else suspendedStations.Remove(scope);
         }
+        EconomicAuthority.SetExternalAuthority(IsStrictEconomyActive);
         Publish(new SelfShuntIntegrationEvent
         {
             Type = SelfShuntIntegrationEventType.GenerationPolicyChanged,
@@ -54,6 +55,7 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
             operations.Add(operationId, fingerprint);
             naturalCarPopulationSuspended = suspended;
         }
+        EconomicAuthority.SetExternalAuthority(IsStrictEconomyActive);
         Publish(new SelfShuntIntegrationEvent
         {
             Type = SelfShuntIntegrationEventType.NaturalCarPopulationPolicyChanged,
@@ -71,12 +73,37 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
 
     internal bool ShouldGenerateAt(string stationId) => !IsNewGenerationSuspended(stationId);
     internal bool ShouldPopulateNaturalCars => !IsNaturalCarPopulationSuspended;
+    internal bool IsStrictEconomyActive
+    {
+        get { lock (gate) return naturalCarPopulationSuspended && suspendedStations.Contains("*"); }
+    }
+
+    internal void PublishLifecycle(SelfShuntIntegrationEventType type, JobContext context, decimal quantity = 0, string resultCode = "")
+    {
+        if (!IsHost || context == null) return;
+        Publish(new SelfShuntIntegrationEvent
+        {
+            Type = type,
+            JobId = context.JobId,
+            StationId = context.StationId,
+            CargoId = context.CargoId,
+            CumulativeQuantity = quantity,
+            ResultCode = resultCode
+        });
+    }
 
     private void Publish(SelfShuntIntegrationEvent value)
     {
         try { EventPublished?.Invoke(value); }
         catch (Exception exception) { Main.SelfShuntModEntry?.Logger.Error("SelfShunt integration event subscriber failed: " + exception.Message); }
     }
+}
+
+internal sealed class JobContext
+{
+    public string JobId { get; set; } = "";
+    public string StationId { get; set; } = "";
+    public string CargoId { get; set; } = "";
 }
 
 public static class SelfShuntApi

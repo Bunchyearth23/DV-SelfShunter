@@ -27,15 +27,32 @@ public static class JobSaver
         staticDirectJobDefinition.ForceJobId(chainSaveData.firstJobId);
         
         Station stationWithId = GetStationWithId(directJobDefinitionData.stationId);
+        if (stationWithId == null)
+        {
+            Main.SelfShuntModEntry?.Logger.Error("SelfShunt refused to load " + chainSaveData.firstJobId + ": station is unavailable.");
+            UnityEngine.Object.Destroy(jobChainGO);
+            return true;
+        }
         staticDirectJobDefinition.PopulateBaseJobDefinition(stationWithId, directJobDefinitionData.timeLimitForJob, directJobDefinitionData.initialWage, new StationsChainData(directJobDefinitionData.originStationId, directJobDefinitionData.destinationStationId), (DV.ThingTypes.JobLicenses) directJobDefinitionData.requiredLicenses);
 
         CargoType transportedCargo = directJobDefinitionData.transportedCargo;
 
         WarehouseMachine loadMachine = GetWarehouseMachineWithId(directJobDefinitionData.startWarehouseId);
         WarehouseMachine unloadMachine = GetWarehouseMachineWithId(directJobDefinitionData.destinationWarehouseId);
+        if (loadMachine == null || unloadMachine == null)
+        {
+            Main.SelfShuntModEntry?.Logger.Error("SelfShunt refused to load " + chainSaveData.firstJobId + ": warehouse is unavailable.");
+            UnityEngine.Object.Destroy(jobChainGO);
+            return true;
+        }
 
         List<Car> carsToTransport = new List<Car>();
-        GetCarsFromCarGuids(directJobDefinitionData.transportCarGuids, ref  carsToTransport);
+        if (!TryGetCarsFromCarGuids(directJobDefinitionData.transportCarGuids, out carsToTransport))
+        {
+            Main.SelfShuntModEntry?.Logger.Error("SelfShunt refused to load " + chainSaveData.firstJobId + ": one or more consist cars are unavailable.");
+            UnityEngine.Object.Destroy(jobChainGO);
+            return true;
+        }
 
         List<float> cargoAmountPerCar = ((IEnumerable<float>) directJobDefinitionData.cargoAmountPerCar).ToList<float>();
         
@@ -103,12 +120,12 @@ public static class JobSaver
     
     //[HarmonyPatch(typeof(JobSaveManager), "GetCarsFromCarGuids")]
     //[HarmonyPrefix]
-    private static bool GetCarsFromCarGuids(string[] carGuids, ref List<Car> __result)
+    private static bool TryGetCarsFromCarGuids(string[] carGuids, out List<Car> cars)
     {
-        __result = new List<Car>();
+        cars = new List<Car>();
         if (carGuids == null || carGuids.Length == 0)
         {
-            return false;
+            return true;
         }
         List<Car> carsFromCarGuids = new List<Car>();
         for (int index = 0; index < carGuids.Length; ++index)
@@ -124,8 +141,8 @@ public static class JobSaver
                 return false;
             }
         }
-        __result = carsFromCarGuids;
-        return false;
+        cars = carsFromCarGuids;
+        return true;
     }
     
     private delegate void InitializeCorrespondingJobBookletDelegate(Job job, List<JobBooklet> jobBooklets);

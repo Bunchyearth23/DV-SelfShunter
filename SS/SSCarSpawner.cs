@@ -17,6 +17,7 @@ public class SSCarSpawner
     public static bool Spawing;
     public static void PopulateMapWithCars()
     {
+        if (!MultiplayerShim.IsHost || Spawing || CarSpawner.Instance == null) return;
         Dictionary<RailTrack, List<TrainCarType_v2>> spawnOnRailTracks = new Dictionary<RailTrack, List<TrainCarType_v2>>();
         foreach (StationController station in StationController.allStations)
         {
@@ -39,25 +40,26 @@ public class SSCarSpawner
     private static async void SpawnCarsOnTrack(Dictionary<RailTrack, List<TrainCarType_v2>> railTracks, int remainingGoal)
     {
         Spawing = true;
-        
-        List<RailTrack> shuffledTracks = railTracks.Keys.OrderBy(_ => _random.Next()).ToList();
-        
-        foreach (RailTrack track in shuffledTracks)
+        try
         {
-            await System.Threading.Tasks.Task.Delay(TimeSpan.FromMilliseconds(100));
-            List<TrainCarType_v2> carTypes = railTracks[track];
-            if (carTypes.Count == 0) return;
+            List<RailTrack> shuffledTracks = railTracks.Keys.OrderBy(_ => _random.Next()).ToList();
+            foreach (RailTrack track in shuffledTracks)
+            {
+                await System.Threading.Tasks.Task.Delay(TimeSpan.FromMilliseconds(100));
+                if (!MultiplayerShim.IsHost || !SelfShuntApi.Runtime.ShouldPopulateNaturalCars) break;
+                List<TrainCarType_v2> carTypes = railTracks[track];
+                if (carTypes.Count == 0) continue;
             
-            if (!track.LogicTrack().IsFree()) continue;
+                if (!track.LogicTrack().IsFree()) continue;
 
-            List<TrainCarLivery> liveriesToSpawn = new List<TrainCarLivery>();
+                List<TrainCarLivery> liveriesToSpawn = new List<TrainCarLivery>();
 
             // Build a short consist/rake of cars for this track
             
-            TrainCarType_v2 randomCarType = carTypes[_random.Next(0, carTypes.Count)];
-            if (randomCarType.liveries.Count == 0) continue;
-            while (liveriesToSpawn.Count < remainingGoal)
-            {
+                TrainCarType_v2 randomCarType = carTypes[_random.Next(0, carTypes.Count)];
+                if (randomCarType.liveries.Count == 0) continue;
+                while (remainingGoal > 0 && liveriesToSpawn.Count < remainingGoal)
+                {
                 TrainCarLivery randomLivery = randomCarType.liveries[_random.Next(0, randomCarType.liveries.Count)];
                 
                 // Track capacity check
@@ -73,18 +75,20 @@ public class SSCarSpawner
 
                 // Chance to end this specific consist early (creates natural train cuts)
                 if (_random.Next(0, 20-liveriesToSpawn.Count) == 0) break;
-            }
+                }
 
-            if (liveriesToSpawn.Count > 0)
-            {
+                if (liveriesToSpawn.Count > 0)
+                {
                 CarSpawner.Instance.SpawnCarTypesOnTrackRandomOrientation(liveriesToSpawn, track, false, true);
                 Debug.Log("[Yard Master] Updated car spawns by adding "+liveriesToSpawn.Count+" cars for a total of "+CarSpawner.Instance.AllCars.Count+"/"+CAR_SPAWN_GOAL+" cars in the map");
                 remainingGoal -= liveriesToSpawn.Count;
-            }
+                }
             
-            if(CarSpawner.Instance.AllCars.Count >= CAR_SPAWN_GOAL)break;
+                if(CarSpawner.Instance.AllCars.Count >= CAR_SPAWN_GOAL)break;
+            }
         }
-        Spawing = false;
+        catch (Exception exception) { Main.SelfShuntModEntry?.Logger.Error("SelfShunt car population failed: " + exception); }
+        finally { Spawing = false; }
     }
 
     private static List<TrainCarType_v2> GetCarTypesForStation(StationController stationController)

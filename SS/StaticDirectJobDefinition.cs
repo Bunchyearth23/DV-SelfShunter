@@ -23,9 +23,12 @@ public class StaticDirectJobDefinition : StaticJobDefinition
     protected override void GenerateJob(Station jobOriginStation, float timeLimit = 0, float initialWage = 0, string forcedJobId = null,
         JobLicenses requiredLicenses = JobLicenses.Basic)
     {
+        if (string.IsNullOrWhiteSpace(forcedJobId))
+            throw new InvalidOperationException("SelfShunt cannot generate a job without a stable ID.");
         if (jobDefinitions.ContainsKey(forcedJobId))
         {
             Debug.LogWarning($"Duplicate job with ID {forcedJobId}");
+            return;
         }
         else
         {
@@ -33,6 +36,7 @@ public class StaticDirectJobDefinition : StaticJobDefinition
         }
         onJobCreated.Invoke(this);
         job = SelfShunt.MakeDirectJob(carsToTransport, chainData, unloadMachine, loadMachine, transportedCargo, timeLimit, initialWage, forcedJobId, requiredLicenses, displayCars, transportedCargo);
+        JobMechanics.RegisterLifecycle(job, this);
     }
 
     private void RemoveJobFromList(Job remJob)

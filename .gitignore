@@ -9,10 +9,13 @@
 !*.csproj
 !*.json
 !*.txt
+!*.md
 
 # Optional: Keep Git tracking the .gitignore file itself
 !.gitignore
 */obj/*
 */bin/*
+**/obj/**
+**/bin/**
 */.git/*
 */.idea/*

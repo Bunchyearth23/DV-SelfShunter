@@ -17,12 +17,14 @@ namespace SelfShunt;
 public static class SelfShunt
 {
     private static HashSet<string> DisabledStations = new HashSet<string>();
+    private static readonly HashSet<string> StationsGenerating = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     
     [HarmonyPatch(typeof(StationProceduralJobsController), nameof(StationProceduralJobsController.TryToGenerateJobs))]
     [HarmonyPrefix]
     public static bool TryToGenerateJobs_Prefix(StationProceduralJobsController __instance)
     {
-        if(SelfShuntApi.Runtime.ShouldPopulateNaturalCars && CarSpawner.Instance.AllCars.Count<SSCarSpawner.CAR_SPAWN_GOAL)
+        if(MultiplayerShim.IsHost && SelfShuntApi.Runtime.ShouldPopulateNaturalCars && !SSCarSpawner.Spawing &&
+           CarSpawner.Instance != null && CarSpawner.Instance.AllCars.Count<SSCarSpawner.CAR_SPAWN_GOAL)
             SSCarSpawner.PopulateMapWithCars();
         return false;
     }
@@ -46,13 +48,20 @@ public static class SelfShunt
     private static void UpdateJobSpawns(StationController stationController)
     {
         Station station = stationController.logicStation;
+        if(station == null || string.IsNullOrWhiteSpace(station.ID)) return;
         if(DisabledStations.Contains(station.ID))return;
         if(!SelfShuntApi.Runtime.ShouldGenerateAt(station.ID))return;
         int trackCount = station.yard.GetAllYardTracks().Count();
         int jobLimit = trackCount + (int)(Math.Sqrt(10 * trackCount)+1);
         if (station.availableJobs.Count < jobLimit)
         {
-            CreateDirectJobChain(station);
+            if (!StationsGenerating.Add(station.ID)) return;
+            try { CreateDirectJobChain(station); }
+            catch (Exception exception)
+            {
+                Main.SelfShuntModEntry?.Logger.Error("SelfShunt failed to generate a job at " + station.ID + ": " + exception);
+            }
+            finally { StationsGenerating.Remove(station.ID); }
         }
     }
 
@@ -92,11 +101,16 @@ public static class SelfShunt
         }
         
         //prevent jobs from being to long for there track
-        while(true)
+        while(carData.Count > 0)
         {
             float len = GetAproxJobLength(carData)+10;//10 is just a random safety margin
             if(len<loadMachine.WarehouseTrack.length&&len<unloadMachine.WarehouseTrack.length)break;
             carData.RemoveAt(0);
+        }
+        if (carData.Count == 0)
+        {
+            Main.SelfShuntModEntry?.Logger.Warning("SelfShunt skipped a job because no compatible consist fits both warehouse tracks.");
+            return;
         }
 
         float timeScale = UnityEngine.Random.Range(0f, 2f);
@@ -200,7 +214,7 @@ public static class SelfShunt
 
             CargoType selectedCargo = selectedCargoGroup.cargoTypes[rand.Next(0, selectedCargoGroup.cargoTypes.Count)];
 
-            if (selectedCargo.ToV2().loadableCarTypes.Length != 0)return selectedCargo;
+            if (loadMachine != null && unloadMachine != null && selectedCargo.ToV2().loadableCarTypes.Length != 0)return selectedCargo;
 
             i++;
         }
@@ -219,8 +233,8 @@ public static class SelfShunt
             licenses += (int)v2.v1;
         }
         if (carCount <= 2) licenses = ((int)JobLicenses.Shunting + licenses);
-        else if (carCount > 5) licenses = ((int)JobLicenses.TrainLength2 + licenses);
-        else if (carCount > 10) licenses = ((int)JobLicenses.TrainLength1 + licenses);
+        else if (carCount > 10) licenses = ((int)JobLicenses.TrainLength2 + licenses);
+        else if (carCount > 5) licenses = ((int)JobLicenses.TrainLength1 + licenses);
 
         return licenses;
     }

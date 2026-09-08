@@ -11,7 +11,8 @@ public enum SelfShuntIntegrationEventType
     DeliveryObserved,
     Completed,
     Cancelled,
-    Expired
+    Expired,
+    JobCreated
 }
 
 public sealed class SelfShuntIntegrationEvent

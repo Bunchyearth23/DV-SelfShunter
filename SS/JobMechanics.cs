@@ -14,6 +14,7 @@ using Ludiq;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityModManagerNet;
+using SelfShunt.API;
 using Object = System.Object;
 using Task = DV.Logic.Job.Task;
 
@@ -26,11 +27,15 @@ public class JobMechanics
     private static Dictionary<string, StationController> trackToStationController = new Dictionary<string, StationController>();
     public class JobUpdateEvent : UnityEvent<List<Car>, Job>{}
     public static JobUpdateEvent jobUpdateEvent = new JobUpdateEvent();
+    private static readonly HashSet<string> boundJobs = new HashSet<string>(StringComparer.Ordinal);
+    private static readonly HashSet<string> terminalJobs = new HashSet<string>(StringComparer.Ordinal);
     
     [HarmonyPatch(typeof(WarehouseTask), nameof(WarehouseTask.UpdateTaskState))]
     [HarmonyPrefix]
     public static bool UpdateTaskState_Prefix(WarehouseTask __instance, ref TaskState __result)
     {
+        if (!IsSelfShuntJob(__instance?.Job)) return true;
+        TaskState oldState = __instance.state;
         
         __instance.readyForMachine = true;
         
@@ -46,6 +51,12 @@ public class JobMechanics
         }
         
         __result = __instance.state;
+        if (oldState != __instance.state && __instance.state == TaskState.Done)
+        {
+            SelfShuntApi.Runtime.PublishLifecycle(
+                ReferenceEquals(__instance.Job.tasks.FirstOrDefault(), __instance) ? SelfShuntIntegrationEventType.LoadingObserved : SelfShuntIntegrationEventType.DeliveryObserved,
+                ContextFor(__instance.Job), GetCumulativeQuantity(__instance), "task-done");
+        }
         
         return false;
     }
@@ -55,6 +66,7 @@ public class JobMechanics
     [HarmonyPrefix]
     public static bool RegisterGeneratedJob_Prefix(Job job, List<Car> cars)
     {
+        if (!IsSelfShuntJob(job)) return true;
         return cars?.Count > 0;
     }
     
@@ -101,6 +113,13 @@ public class JobMechanics
 
     public static void AddCarsToJob(List<Car> validCars, Job job)
     {
+        if (!IsSelfShuntJob(job) || validCars == null || validCars.Count == 0) return;
+        var existing = (AccessTools.Field(typeof(JobsManager), "jobToJobCars").GetValue(JobsManager.Instance) as Dictionary<Job, HashSet<Car>>);
+        if (existing != null && existing.TryGetValue(job, out var assigned) && assigned.SetEquals(validCars))
+        {
+            Main.SelfShuntModEntry?.Logger.Log("SelfShunt ignored duplicate consist assignment for " + job.ID + ".");
+            return;
+        }
         if(MultiplayerShim.IsHost)jobUpdateEvent.Invoke(validCars, job);
         foreach (Task t in job.tasks)if (t is WarehouseTask warehouseTask)
         {
@@ -116,7 +135,8 @@ public class JobMechanics
             }
             AccessTools.Field(typeof(WarehouseTask), "cargoAmount").SetValue(warehouseTask, totalCargoSpace);
         }
-        (AccessTools.Field(typeof(JobsManager), "jobToJobCars").GetValue(JobsManager.Instance) as Dictionary<Job, HashSet<Car>>)[job] = new HashSet<Car>((IEnumerable<Car>)validCars);
+        if (existing == null) throw new InvalidOperationException("SelfShunt could not access the job-to-cars registry.");
+        existing[job] = new HashSet<Car>((IEnumerable<Car>)validCars);
             
         //set debt
         JobDebtController.Instance.RegisterGeneratedJob(job, validCars);
@@ -125,8 +145,7 @@ public class JobMechanics
         BookletMaker.UpdateBook(job);
             
         //Prevent car softlock and ensure cars are cleaned out
-        job.JobAbandoned += new Action<Job>(RemoveAllCargo);
-        job.JobCompleted += new Action<Job>(RemoveAllCargo);
+        RegisterLifecycle(job, StaticDirectJobDefinition.jobDefinitions[job.ID]);
     }
     
     private delegate void OnJobTakenDelegate(DV.Logic.Job.Job takenJob, bool jobLoadedFromSavegame);
@@ -167,13 +186,74 @@ public class JobMechanics
 
     private static void RemoveAllCargo(Job job)
     {
-        if(!(job.tasks[0] is WarehouseTask task))return;
-        
-        foreach (Car c in task.cars)
+        WarehouseTask task = job?.tasks?.OfType<WarehouseTask>().FirstOrDefault();
+        if (task != null)
         {
-            if(c.LoadedCargoAmount > 0)c.UnloadCargo(c.LoadedCargoAmount,c.CurrentCargoTypeInCar);
-            c.TrainCar().UpdateJobIdOnCarPlates("");
+            foreach (Car c in task.cars)
+            {
+                if(c.LoadedCargoAmount > 0)c.UnloadCargo(c.LoadedCargoAmount,c.CurrentCargoTypeInCar);
+                c.TrainCar().UpdateJobIdOnCarPlates("");
+            }
         }
+        if (job == null) return;
+        boundJobs.Remove(job.ID);
+        EconomicAuthority.Untrack(job);
+        StaticDirectJobDefinition.jobDefinitions.Remove(job.ID);
+    }
+
+    public static bool IsSelfShuntJob(Job job)
+        => job != null && !string.IsNullOrWhiteSpace(job.ID) && StaticDirectJobDefinition.jobDefinitions.ContainsKey(job.ID);
+
+    public static void RegisterLifecycle(Job job, StaticDirectJobDefinition definition)
+    {
+        if (job == null || definition == null || string.IsNullOrWhiteSpace(job.ID) || !boundJobs.Add(job.ID)) return;
+        terminalJobs.Remove(job.ID);
+        job.JobAbandoned += OnJobAbandoned;
+        job.JobCompleted += OnJobCompleted;
+        job.JobExpired += OnJobExpired;
+        EconomicAuthority.Track(job);
+        SelfShuntApi.Runtime.PublishLifecycle(SelfShuntIntegrationEventType.JobCreated, ContextFor(job), 0, "selfshunt-job-created");
+    }
+
+    private static void OnJobCompleted(Job job)
+    {
+        if (job == null || !terminalJobs.Add(job.ID)) return;
+        SelfShuntApi.Runtime.PublishLifecycle(SelfShuntIntegrationEventType.Completed, ContextFor(job), 0, "completed");
+        RemoveAllCargo(job);
+    }
+
+    private static void OnJobAbandoned(Job job)
+    {
+        if (job == null || !terminalJobs.Add(job.ID)) return;
+        SelfShuntApi.Runtime.PublishLifecycle(SelfShuntIntegrationEventType.Cancelled, ContextFor(job), 0, "abandoned");
+        RemoveAllCargo(job);
+    }
+
+    private static void OnJobExpired(Job job)
+    {
+        if (job == null || !terminalJobs.Add(job.ID)) return;
+        SelfShuntApi.Runtime.PublishLifecycle(SelfShuntIntegrationEventType.Expired, ContextFor(job), 0, "expired");
+        RemoveAllCargo(job);
+    }
+
+    private static JobContext ContextFor(Job job)
+    {
+        StaticDirectJobDefinition definition;
+        StaticDirectJobDefinition.jobDefinitions.TryGetValue(job?.ID ?? "", out definition);
+        return new JobContext
+        {
+            JobId = job?.ID ?? "",
+            StationId = definition?.chainData?.chainOriginYardId ?? "",
+            CargoId = definition == null ? "" : definition.transportedCargo.ToString()
+        };
+    }
+
+    private static decimal GetCumulativeQuantity(WarehouseTask task)
+    {
+        decimal total = 0;
+        if (task?.cars == null) return total;
+        foreach (Car car in task.cars) total += (decimal)Math.Max(0f, car.LoadedCargoAmount);
+        return total;
     }
 
 

@@ -24,10 +24,23 @@ public static class MultiplayerShim
     {
         get
         {
-            if (_isHost == null)
-                return true;
+            if (_isHost != null && _mpApiInstance != null)
+                return (bool)_isHost.GetValue(_mpApiInstance)!;
 
-            return (bool)_isHost.GetValue(_mpApiInstance)!;
+            var assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == MPAPI_ASSEMBLY_NAME);
+            if (assembly == null) return true;
+            try
+            {
+                var type = assembly.GetType(MPAPI_TYPE_NAME);
+                _mpApiInstance = type?.GetProperty(MPAPI_INSTANCE_PROPERTY, BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                _isHost = _mpApiInstance?.GetType().GetProperty(IS_HOST_PROPERTY, BindingFlags.Public | BindingFlags.Instance);
+                return _isHost != null && _mpApiInstance != null && (bool)_isHost.GetValue(_mpApiInstance)!;
+            }
+            catch
+            {
+                // Multiplayer is present but authority cannot be proven: fail closed.
+                return false;
+            }
         }
     }
 
