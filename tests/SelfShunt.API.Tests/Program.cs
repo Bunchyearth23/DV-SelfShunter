@@ -17,6 +17,7 @@ Check(api.GetMethod(nameof(ISelfShuntIntegrationApi.SetNaturalCarPopulationSuspe
 Check(api.GetProperty(nameof(ISelfShuntIntegrationApi.IsExternalEconomicAuthority)) != null, "external economic authority evidence is required");
 Check(api.GetMethod(nameof(ISelfShuntIntegrationApi.TryRegisterExternalJob)) != null, "external job correlation is required");
 Check(api.GetEvent(nameof(ISelfShuntIntegrationApi.EventPublished)) != null, "lifecycle event surface is required");
+Check(new SelfShuntExternalJobRegistration { DisplayReward = 1234 }.DisplayReward == 1234, "external jobs require a separate display-only reward");
 
 if (failures.Count != 0)
 {
@@ -24,7 +25,7 @@ if (failures.Count != 0)
     return 1;
 }
 
-Console.WriteLine("SelfShunt.API contract tests: 11/11 passed");
+Console.WriteLine("SelfShunt.API contract tests: 12/12 passed");
 return 0;
 
 void Check(bool condition, string message)

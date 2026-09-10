@@ -179,7 +179,7 @@ public class BookletMaker
             mass,
             value,
             timeLimit,
-            job.basePayment.ToString("N0", (IFormatProvider) LocalizationAPI.CC),
+            GetDisplayedPayment(job),
             "",
             ""
         );
@@ -240,7 +240,7 @@ public class BookletMaker
             mass,
             value,
             timeLimit,
-            job.basePayment.ToString("N0", (IFormatProvider) LocalizationAPI.CC),
+            GetDisplayedPayment(job),
             "2",
             "5"
         );
@@ -280,5 +280,12 @@ public class BookletMaker
         value = $"${(StaticDirectJobDefinition.jobDefinitions[job.ID].transportedCargo.ToV2().fullDamagePrice*carCount / 1000f).ToString("N2", (IFormatProvider) LocalizationAPI.CC)}K";
         mass = (StaticDirectJobDefinition.jobDefinitions[job.ID].transportedCargo.ToV2().massPerUnit*carCount * (1f / 1000f)).ToString("N2", (IFormatProvider) LocalizationAPI.CC) + " t";;
         length = carCount+" Cars";
+    }
+
+    private static string GetDisplayedPayment(Job_data job)
+    {
+        if (SelfShuntApi.TryGetExternalJobDisplayReward(job.ID, out var reward))
+            return reward.ToString("N0", (IFormatProvider) LocalizationAPI.CC) + " (BDVM)";
+        return job.basePayment.ToString("N0", (IFormatProvider) LocalizationAPI.CC);
     }
 }

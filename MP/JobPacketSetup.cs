@@ -37,18 +37,20 @@ public static class JobPacketSetup
 
     public class DHOverviewPacket : MPAPI.Interfaces.Packets.IPacket
     {
-        public string StartStationID {get; set;}
-        public string EndStationID {get; set;}
+        public string StartStationID {get; set;} = "";
+        public string EndStationID {get; set;} = "";
         public int CargoCount {get; set;}
         public int CargoType {get; set;}
         public float TimeLimit {get; set;}
         public float Price {get; set;}
-        public string ID {get; set;}
+        public bool HasExternalDisplayReward {get; set;}
+        public long ExternalDisplayReward {get; set;}
+        public string ID {get; set;} = "";
     }
 
     public class DHJobUpdatePacket : MPAPI.Interfaces.Packets.IPacket
     {
-        public string JobID {get; set;}
-        public string[] CarIDs {get; set;}
+        public string JobID {get; set;} = "";
+        public string[] CarIDs {get; set;} = Array.Empty<string>();
     }
 }

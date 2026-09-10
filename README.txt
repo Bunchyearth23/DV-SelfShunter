@@ -20,7 +20,11 @@ This branch adds SelfShunt.API for BDVM.SelfShuntBridge. The API exposes
 host-only, idempotent controls for job generation and natural rolling-stock
 population, plus observational lifecycle events. When strict BDVM economy is
 enabled, SelfShunt wages are suppressed and BDVM remains the sole economic
-authority. Clients only receive replicated state.
+authority. For externally registered jobs, the booklet can display BDVM's
+planned reward as informational metadata while SelfShunt's actual wage remains
+zero. The display reward is replicated to clients separately from the vanilla
+wage, so it cannot create a second payment path. Clients only receive replicated
+state.
 
 The integration fails closed when authority or a required capability cannot be
 proved. Cleanup protection is limited to rolling stock assigned to an active

@@ -34,6 +34,7 @@ public sealed class SelfShuntExternalJobRegistration
     public string JobId { get; set; } = "";
     public string StationId { get; set; } = "";
     public string CargoId { get; set; } = "";
+    public long DisplayReward { get; set; }
 }
 
 public interface ISelfShuntIntegrationApi
