@@ -139,6 +139,11 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
         lock (gate) return externalDisplayRewards.TryGetValue(jobId, out reward);
     }
 
+    internal bool IsExternalJob(string jobId)
+    {
+        lock (gate) return !string.IsNullOrWhiteSpace(jobId) && externalJobs.ContainsKey(jobId);
+    }
+
     internal bool RecordReplicatedExternalDisplayReward(string jobId, long reward)
     {
         if (IsHost || string.IsNullOrWhiteSpace(jobId) || reward < 0) return false;

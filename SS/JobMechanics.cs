@@ -45,6 +45,14 @@ public class JobMechanics
         {
             SetState(__instance,TaskState.InProgress);
         }
+        else if (__instance.warehouseTaskType == WarehouseTaskType.Unloading && SelfShuntApi.Runtime.IsExternalJob(__instance.Job?.ID ?? "") && __instance.cars.Any(car => car != null && car.LoadedCargoAmount > 0.01f))
+        {
+            // A BDVM destination may only have room for part of the consist. Keep the
+            // same physical unloading task alive so the player can store/shunt the
+            // remainder and pull the vanilla lever again when capacity becomes free.
+            machineTasks?.Add(__instance);
+            SetState(__instance, TaskState.InProgress);
+        }
         else
         {
             SetState(__instance,TaskState.Done);
