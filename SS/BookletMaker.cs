@@ -159,7 +159,7 @@ public class BookletMaker
         TemplatePaperData data = new FrontPageTemplatePaperData(
             DIRECT_HAUL_NAME,
             "",
-            job.ID,
+            GetDisplayedJobName(job),
             DIRECT_HAUL_COLOR,
             "Transport "+allCars.Count+" loads of " +cargoName,
             job.requiredLicenses,
@@ -194,7 +194,7 @@ public class BookletMaker
     {
         if (job.type != JobType.ComplexTransport) return true;
         
-        CoverPageTemplatePaperData cover = new CoverPageTemplatePaperData(job.ID, "Direct Haul", "1", "5");
+        CoverPageTemplatePaperData cover = new CoverPageTemplatePaperData(GetDisplayedJobName(job), "Direct Haul", "1", "5");
 
         List<Car_data> allCars;
         if (job.tasksData[0].cars.Count == 0) allCars = StaticDirectJobDefinition.jobDefinitions[job.ID].displayCars;
@@ -220,7 +220,7 @@ public class BookletMaker
         FrontPageTemplatePaperData frontPage = new FrontPageTemplatePaperData(
             DIRECT_HAUL_NAME,
             "",
-            job.ID,
+            GetDisplayedJobName(job),
             DIRECT_HAUL_COLOR,
             "Transport "+allCars.Count+" loads of " +cargoName,
             job.requiredLicenses,
@@ -285,7 +285,15 @@ public class BookletMaker
     private static string GetDisplayedPayment(Job_data job)
     {
         if (SelfShuntApi.TryGetExternalJobDisplayReward(job.ID, out var reward))
-            return reward.ToString("N0", (IFormatProvider) LocalizationAPI.CC) + " (BDVM)";
+            return reward.ToString("N0", (IFormatProvider) LocalizationAPI.CC);
         return job.basePayment.ToString("N0", (IFormatProvider) LocalizationAPI.CC);
+    }
+
+    private static string GetDisplayedJobName(Job_data job)
+    {
+        if (SelfShuntApi.TryGetExternalJobDisplayName(job.ID, out var name) && !string.IsNullOrWhiteSpace(name))
+            return name;
+        var id = job.ID ?? "";
+        return id.Length <= 40 ? id : id.Substring(0, 37) + "...";
     }
 }

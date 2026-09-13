@@ -14,6 +14,7 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
     private readonly Dictionary<string, string> operations = new Dictionary<string, string>(StringComparer.Ordinal);
     private readonly Dictionary<string, JobContext> externalJobs = new Dictionary<string, JobContext>(StringComparer.Ordinal);
     private readonly Dictionary<string, long> externalDisplayRewards = new Dictionary<string, long>(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> externalDisplayNames = new Dictionary<string, string>(StringComparer.Ordinal);
     private bool naturalCarPopulationSuspended;
 
     public int ApiVersion => 1;
@@ -82,8 +83,9 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
     {
         if (!IsHost || !IsStrictEconomyActive || registration == null ||
             string.IsNullOrWhiteSpace(registration.OperationId) || string.IsNullOrWhiteSpace(registration.JobId) ||
-            string.IsNullOrWhiteSpace(registration.StationId) || string.IsNullOrWhiteSpace(registration.CargoId) || registration.DisplayReward < 0) return false;
-        var fingerprint = "external-job|" + registration.JobId + "|" + registration.StationId + "|" + registration.CargoId + "|" + registration.DisplayReward;
+            string.IsNullOrWhiteSpace(registration.StationId) || string.IsNullOrWhiteSpace(registration.CargoId) || registration.DisplayReward < 0 ||
+            registration.DisplayName == null || registration.DisplayName.Length > 64 || registration.DisplayName.Any(char.IsControl)) return false;
+        var fingerprint = "external-job|" + registration.JobId + "|" + registration.StationId + "|" + registration.CargoId + "|" + registration.DisplayReward + "|" + registration.DisplayName;
         lock (gate)
         {
             if (operations.TryGetValue(registration.OperationId, out var known)) return string.Equals(known, fingerprint, StringComparison.Ordinal);
@@ -95,9 +97,11 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
                 JobId = registration.JobId,
                 StationId = registration.StationId,
                 CargoId = registration.CargoId,
-                DisplayReward = registration.DisplayReward
+                DisplayReward = registration.DisplayReward,
+                DisplayName = registration.DisplayName
             });
             externalDisplayRewards[registration.JobId] = registration.DisplayReward;
+            externalDisplayNames[registration.JobId] = registration.DisplayName;
         }
         RefreshBooklet(registration.JobId);
         PublishLifecycle(SelfShuntIntegrationEventType.ExternalJobCreated, ContextForExternal(registration.JobId), 0, "external-job-registered");
@@ -139,6 +143,11 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
         lock (gate) return externalDisplayRewards.TryGetValue(jobId, out reward);
     }
 
+    internal bool TryGetExternalDisplayName(string jobId, out string name)
+    {
+        lock (gate) return externalDisplayNames.TryGetValue(jobId, out name!);
+    }
+
     internal bool IsExternalJob(string jobId)
     {
         lock (gate) return !string.IsNullOrWhiteSpace(jobId) && externalJobs.ContainsKey(jobId);
@@ -155,6 +164,17 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
         }
     }
 
+    internal bool RecordReplicatedExternalDisplayName(string jobId, string name)
+    {
+        if (IsHost || string.IsNullOrWhiteSpace(jobId) || name == null || name.Length > 64 || name.Any(char.IsControl)) return false;
+        lock (gate)
+        {
+            if (externalDisplayNames.TryGetValue(jobId, out var known)) return string.Equals(known, name, StringComparison.Ordinal);
+            externalDisplayNames.Add(jobId, name);
+            return true;
+        }
+    }
+
     internal void ForgetExternalJob(string jobId)
     {
         if (string.IsNullOrWhiteSpace(jobId)) return;
@@ -162,6 +182,7 @@ public sealed class SelfShuntIntegrationApi : ISelfShuntIntegrationApi
         {
             externalJobs.Remove(jobId);
             externalDisplayRewards.Remove(jobId);
+            externalDisplayNames.Remove(jobId);
         }
     }
 
@@ -200,6 +221,7 @@ internal sealed class JobContext
     public string StationId { get; set; } = "";
     public string CargoId { get; set; } = "";
     public long DisplayReward { get; set; }
+    public string DisplayName { get; set; } = "";
 }
 
 public static class SelfShuntApi
@@ -207,5 +229,8 @@ public static class SelfShuntApi
     public static ISelfShuntIntegrationApi Instance { get; } = new SelfShuntIntegrationApi();
     internal static SelfShuntIntegrationApi Runtime => (SelfShuntIntegrationApi)Instance;
     public static bool TryGetExternalJobDisplayReward(string jobId, out long reward) => Runtime.TryGetExternalDisplayReward(jobId, out reward);
+    public static bool TryGetExternalJobDisplayName(string jobId, out string name) => Runtime.TryGetExternalDisplayName(jobId, out name!);
     public static bool RecordReplicatedExternalJobDisplayReward(string jobId, long reward) => Runtime.RecordReplicatedExternalDisplayReward(jobId, reward);
+
+    public static bool RecordReplicatedExternalJobDisplayName(string jobId, string name) => Runtime.RecordReplicatedExternalDisplayName(jobId, name);
 }

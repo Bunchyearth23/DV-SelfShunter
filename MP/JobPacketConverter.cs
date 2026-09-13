@@ -45,6 +45,13 @@ public static class JobPacketConverter
         jobDefinition.displayCars = carData;
         jobDefinition.transportedCargo = cargoType;
         StaticDirectJobDefinition.jobDefinitions.Add(packet.ID, jobDefinition);
+        if (packet.HasExternalDisplayName && !SelfShuntApi.RecordReplicatedExternalJobDisplayName(packet.ID, packet.ExternalDisplayName))
+        {
+            Debug.LogError("Rejected conflicting external display name for job " + packet.ID + ".");
+            StaticDirectJobDefinition.jobDefinitions.Remove(packet.ID);
+            UnityEngine.Object.Destroy(jobChainGO);
+            return;
+        }
         if (packet.HasExternalDisplayReward && !SelfShuntApi.RecordReplicatedExternalJobDisplayReward(packet.ID, packet.ExternalDisplayReward))
         {
             Debug.LogError("Rejected conflicting external display reward for job " + packet.ID + ".");
@@ -82,6 +89,8 @@ public static class JobPacketConverter
             ?? throw new InvalidOperationException("SelfShunt cannot replicate a job without a stable ID.");
         packet.HasExternalDisplayReward = SelfShuntApi.TryGetExternalJobDisplayReward(packet.ID, out var externalDisplayReward);
         packet.ExternalDisplayReward = externalDisplayReward;
+        packet.HasExternalDisplayName = SelfShuntApi.TryGetExternalJobDisplayName(packet.ID, out var externalDisplayName);
+        packet.ExternalDisplayName = externalDisplayName ?? "";
 
         Debug.Log("Sending "+packet.ID+" cars "+packet.CargoCount);
         return packet;

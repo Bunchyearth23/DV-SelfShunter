@@ -45,6 +45,8 @@ public static class JobPacketSetup
         public float Price {get; set;}
         public bool HasExternalDisplayReward {get; set;}
         public long ExternalDisplayReward {get; set;}
+        public bool HasExternalDisplayName {get; set;}
+        public string ExternalDisplayName {get; set;} = "";
         public string ID {get; set;} = "";
     }
 
