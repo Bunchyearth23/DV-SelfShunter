@@ -1,6 +1,6 @@
 {
   "Id": "SelfShunt",
-  "DisplayName": "SelfShunt - BDVM integration fork",
+  "DisplayName": "BDVM Fork - SelfShunt",
   "Author": "Chump_the_Lump; BDVM integration by Bunchy (Bunchyearth23)",
   "Repository": "https://raw.githubusercontent.com/Bunchyearth23/DV-SelfShunter/dvcompany-integration/repository.json",
   "Version": "1.1.0",
