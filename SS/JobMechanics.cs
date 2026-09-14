@@ -23,6 +23,7 @@ namespace SelfShunt;
 [HarmonyPatch]
 public class JobMechanics
 {
+    private static readonly System.Reflection.FieldInfo CurrentWarehouseTasks = AccessTools.Field(typeof(WarehouseMachine), "currentTasks");
     
     private static Dictionary<string, StationController> trackToStationController = new Dictionary<string, StationController>();
     public class JobUpdateEvent : UnityEvent<List<Car>, Job>{}
@@ -39,9 +40,20 @@ public class JobMechanics
         
         __instance.readyForMachine = true;
         
-        List<WarehouseTask>? machineTasks = AccessTools.Field(typeof(WarehouseMachine), "currentTasks").GetValue(__instance.warehouseMachine) as List<WarehouseTask>;
+        List<WarehouseTask>? machineTasks = CurrentWarehouseTasks.GetValue(__instance.warehouseMachine) as List<WarehouseTask>;
         
-        if (machineTasks?.Contains(__instance) == true)
+        if (__instance.warehouseTaskType == WarehouseTaskType.Loading &&
+            SelfShuntApi.Runtime.IsExternalJob(__instance.Job?.ID ?? "") &&
+            StaticDirectJobDefinition.jobDefinitions.TryGetValue(__instance.Job.ID, out var definition) &&
+            LoadingPlanSatisfied(__instance, definition))
+        {
+            // A registered external plan may adopt cargo loaded before its job existed.
+            // Keep both tasks for save/MP compatibility, but never send that cargo back
+            // through the origin machine. Mixed/partial plans keep their loading task.
+            machineTasks?.Remove(__instance);
+            SetState(__instance, TaskState.Done);
+        }
+        else if (machineTasks?.Contains(__instance) == true)
         {
             SetState(__instance,TaskState.InProgress);
         }
@@ -67,6 +79,20 @@ public class JobMechanics
         }
         
         return false;
+    }
+
+    private static bool LoadingPlanSatisfied(WarehouseTask task, StaticDirectJobDefinition definition)
+    {
+        var plan = definition.cargoAmountPerCar;
+        if (plan == null || task.cars == null || plan.Count == 0 || plan.Count != task.cars.Count || definition.carsToTransport.Count != plan.Count) return false;
+        for (var index = 0; index < plan.Count; index++)
+        {
+            var car = task.cars[index];
+            if (car == null || !ReferenceEquals(car, definition.carsToTransport[index]) ||
+                (car.LoadedCargoAmount > 0.01f && car.CurrentCargoTypeInCar != task.cargoType) ||
+                !ExternalCargoPlan.IsQuantitySatisfied(plan[index], car.LoadedCargoAmount)) return false;
+        }
+        return true;
     }
     
         

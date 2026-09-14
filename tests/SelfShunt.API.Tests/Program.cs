@@ -1,6 +1,14 @@
 using SelfShunt.API;
 
 var failures = new List<string>();
+Check(ExternalCargoPlan.IsSatisfied(new[] {1f, 0.5f}, new[] {1f, 0.5f}, true), "preloaded complete plan can skip physical loading");
+Check(!ExternalCargoPlan.IsSatisfied(new[] {1f, 1f}, new[] {1f, 0f}, true), "mixed consist still requires loading");
+Check(!ExternalCargoPlan.IsSatisfied(new[] {1f}, new[] {0.5f}, true), "partial cargo below plan still requires loading");
+Check(!ExternalCargoPlan.IsSatisfied(new[] {1f}, new[] {1f}, false), "wrong cargo cannot satisfy a plan");
+Check(!ExternalCargoPlan.IsSatisfied(new[] {1f}, new[] {1f, 1f}, true), "different wagon count cannot satisfy a plan");
+Check(!ExternalCargoPlan.IsSatisfied(new[] {float.NaN}, new[] {1f}, true), "invalid planned amount is refused");
+Check(!ExternalCargoPlan.IsSatisfied(new[] {1f}, new[] {float.PositiveInfinity}, true), "invalid physical amount is refused");
+Check(!ExternalCargoPlan.IsSatisfied(Array.Empty<float>(), Array.Empty<float>(), true), "unassigned vanilla jobs do not skip loading");
 Check((int)SelfShuntIntegrationEventType.GenerationPolicyChanged == 0, "existing event values must remain stable");
 Check((int)SelfShuntIntegrationEventType.Expired == 7, "v1 terminal event values must remain stable");
 Check((int)SelfShuntIntegrationEventType.JobCreated == 8, "JobCreated must be append-only");
@@ -27,7 +35,7 @@ if (failures.Count != 0)
     return 1;
 }
 
-Console.WriteLine("SelfShunt.API contract tests: 13/13 passed");
+Console.WriteLine("SelfShunt.API contract and cargo plan tests: 21/21 passed");
 return 0;
 
 void Check(bool condition, string message)

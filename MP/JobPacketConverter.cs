@@ -127,16 +127,13 @@ public static class JobPacketConverter
         }
             
         List<Car> cars = new List<Car>();
+        // Build once per received assignment; do not scan the world for each ID.
+        var carsById = new Dictionary<string, TrainCar>(StringComparer.Ordinal);
+        foreach (var gameCar in CarSpawner.Instance.AllCars)
+            if (gameCar != null && !carsById.ContainsKey(gameCar.ID)) carsById.Add(gameCar.ID, gameCar);
         foreach (string carID in packet.CarIDs)
         {
-            foreach (TrainCar gameCar in CarSpawner.Instance.AllCars)
-            {
-                if (carID == gameCar.ID)
-                {
-                    cars.Add(gameCar.logicCar);
-                    break;
-                }
-            }
+            if (carsById.TryGetValue(carID, out var gameCar)) cars.Add(gameCar.logicCar);
         }
         if (cars.Count != packet.CarIDs.Length)
         {
